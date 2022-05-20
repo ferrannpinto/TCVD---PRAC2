@@ -507,11 +507,261 @@ Pel que fa a aquest model, és significatiu (p-valor menor que 0.05). Pel que fa
 
 **Si afegim la resta de variables al model, veiem que................ (fer un model de regressió lineal múltiple amb totes les variables i anar-les reduint fins a tenir el millor model de regressió per predir la qualitat). Intentem construir el millor model per predir la qualitat del vi.
 
+```{r}
+# La variable "target" serà la quality
+reg2 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    citric.acid + type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+summary(reg2)
+```
+
+Amb totes les variables introduides com preditors l'ajust és del 0.2996. ës a dir, un el model és capaç d'explicar el 29.96% de la variabilitat observada en la qualitat del vi. A més a més, el valor *p-value* del model és significatiu (2.2e-16) i, per tant, es pot acceptar que el model no és per l'atzar.
+
+Per millorar el model es seleccionen els millors predictors per eliminar interferències provocades entre ells. És realitzarà amb les funcionabilitats de la llibreria *MASS* per observar el valor *Akaike (AIC)*. Es realitza lla comparació amb la metodologia *backward*.
+
+```{r message= FALSE, warning=FALSE, include=FALSE}
+# Llibreria per fer el plot matriu de correlació
+if(!require("MASS")) install.packages("MASS"); library("MASS")
+```
+
+```{r}
+regBack <- stepAIC(reg2, trace=FALSE, direction="backward")
+summary(regBack)
+```
+
+```{r}
+regBack$anova
+```
+
+Amb el model obtingut l'ajust millora fins el valor de 
+El model obtingut elimina la variable *citric.acid*.
+
+```{r}
+reg3 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+summary(reg3)
+```
+
+Es proven altres metodologies per obtenir els millors preditors.
+
+```{r}
+empty.model <- lm(quality ~ 1, data=wine)
+horizonte <- formula(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    citric.acid + type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity)
+
+sumBoth <- stepAIC(empty.model, trace=FALSE, direction="both", scope=horizonte)
+sumBoth$anova
+```
+
+```{r}
+reg4 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+summary(reg4)
+```
+
+```{r}
+plot(reg4, which=c(2,1))
+```
+
+La distribució dels valors ajustats enfront dels residus estan prou centrats entorn del valor 0. Per tant, hi ha una correcta distribució de l'error en el model. Per altra banda, la funció QQ mostra desviacions en els valors extrems de la gràfica, però els punts centrals es mantenen propers a la línia.
 
 
+A més a més, es generen mètodes per validar si algun es comporta millor.
+
+```{r}
+# Generacio de models
+model0 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + citric.acid +
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+
+model1 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH, data = wine)
+
+model2 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+
+model3 <- lm(quality ~ alcohol + sulphates + residual.sugar + citric.acid +
+    free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+
+model4 <- lm(quality ~ alcohol + sulphates + residual.sugar + citric.acid +
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
+
+model5 <- lm(quality ~ alcohol + sulphates + residual.sugar +
+    type + free.sulfur.dioxide + density  + 
+    chlorides + pH + fixed.acidity, data = wine)
+
+model6 <- lm(quality ~ alcohol + density + total.sulfur.dioxide +
+    chlorides + pH, data = wine)
+
+model7 <- lm(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
 
 
-LES MILLORS VARIABLES PER PREDIR LA QUALITAT DEL VI SÓN...
+model8 <- lm(quality ~ sulphates + residual.sugar + type + free.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, data = wine)
 
+model9 <- lm(quality ~ volatile.acidity + sulphates +  
+    type + free.sulfur.dioxide + density +  
+    pH + fixed.acidity, data = wine)
+```
+
+```{r}
+# Tabla con los coeficientes de determinación de cada modelo
+tabla.coeficientes <- matrix(c(0, summary(model0)$r.squared,
+                                1, summary(model1)$r.squared,
+                                2, summary(model2)$r.squared,
+                                3, summary(model3)$r.squared,
+                                4, summary(model4)$r.squared,
+                                5, summary(model5)$r.squared,
+                                7, summary(model6)$r.squared,
+                                8, summary(model7)$r.squared,
+                                9, summary(model8)$r.squared,
+                                10, summary(model9)$r.squared),
+                                ncol = 2, byrow = TRUE)
+colnames(tabla.coeficientes) <- c("Moldel nº", "R^2")
+tabla.coeficientes
+## Modelo
+
+```
+
+LES MILLORS VARIABLES PER PREDIR LA QUALITAT DEL VI SÓN.
+
+El model 0 és el que millors resultats d'ajust aporta. Per tant, si es reduix més el nombre de variables es perd capacitat de predicció en model. Les variables significatives són:
+
+alcohol 
++ volatile.acidity 
++ sulphates 
++ residual.sugar 
++ citric.acid 
++ type 
++ free.sulfur.dioxide 
++ density 
++ total.sulfur.dioxide 
++ chlorides 
++ pH 
++ fixed.acidity
+
+Després d'haver extret les variables del conjunt s'observa si aquestes variables es mantenen en el cas d'analitzar el vi negre i el vi blanc per serpat.
+
+```{r}
+viBlanc <- wine[wine['type'] == 'White',]
+viNegre <- wine[wine['type'] == 'Red',]
+```
+
+S'analitza les variables significatives del vi blanc.
+
+```{r}
+empty.model <- lm(quality ~ 1, data=viBlanc)
+horizonte <- formula(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    citric.acid + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity)
+
+modelViBlanc <- stepAIC(empty.model, trace=FALSE, direction="both", scope=horizonte)
+modelViBlanc$anova
+```
+
+S'analitzen les variables del vi negre
+
+```{r}
+empty.model <- lm(quality ~ 1, data=viNegre)
+horizonte <- formula(quality ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    citric.acid + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity)
+
+modelViNegre <- stepAIC(empty.model, trace=FALSE, direction="both", scope=horizonte)
+modelViNegre$anova
+```
+
+S'observa que les variables principals del vi blanc són:
+
++ alcohol
++ volatile.acidity
++ residual.sugar
++ free.sulfur.dioxide
++ density
++ pH
++ sulphates
++ fixed.acidity 
+
+S'observa que les variables principals del vi negre són:
+
++ alcohol
++ volatile.acidity
++ free.sulfur.dioxide 
++ pH
++ sulphates
++ total.sulfur.dioxide
++ chlorides
+
+S'observen que les variables *residual.sugar*, *density* i *fixed.acidity* són úniques pel vi blanc. Tanmateix, les varibales *total.sulfur.dioxide* i *chlorides* són únqiues pel vi negre. 
+
+Es generen els models de regressió lineal pel vi blanc i pel vi negre amb les variables significatives per cada un.
+
+```{r}
+lmViBlanc <- lm(quality ~ alcohol + volatile.acidity + residual.sugar + free.sulfur.dioxide + 
+    density + pH + sulphates + fixed.acidity, data = viBlanc)
+summary(lmViBlanc)
+```
+
+```{r}
+lmViNegre <- lm(quality ~ alcohol + volatile.acidity + sulphates + total.sulfur.dioxide + 
+    chlorides + pH + free.sulfur.dioxide, data = viNegre)
+summary(lmViNegre)
+```
+
+S'observa que l'ajust del vi blanc és de 0.289 i l'ajust del vi negre és de 0.3595.És a dir, en el conjunt del vi negre mostra una millor adaptabilitat a la regressió lineal múltiple. 
+
+Finalment, es genera una regressió lineal de tot el conjunt de dades amb les variables fisicoquímiques rellevants per ambdues tipologies de vi.
+
+```{r}
+reg5 <- lm(quality ~ alcohol + volatile.acidity + sulphates + pH + free.sulfur.dioxide, data = wine)
+summary(reg5)
+```
+
+S'observa que si sols es recullen les variables significatives que comparteixen els conjunts de vi blanc i vi negre s'obté un resultat pitjor que en el cas de fer l'anàlisi amb el conjunt unit en primera instància.
+
+A continuació es realitza el model logìstic per predir si és bo o no bo un vi. 
+
+```{r}
+m1 <- glm(quality_d ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    citric.acid + type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, family = binomial, data= wine)
+summary(m1)
+```
+
+S'eliminen les variables no significatives,
+
+```{r}
+sig.var<- summary(m1)$coeff[-1,4] >0.05
+names(sig.var)[sig.var == TRUE]
+```
+
+Es torna a generar el model sense la varianle *crtric.acid* perquè no és significativa.
+
+```{r}
+m2 <- glm(quality_d ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    type + free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, family = binomial, data= wine)
+summary(m2)
+```
 
 *** PODEM FER REGRESSIÓ LOGÍSTICA PER PREDIR EL RESULTAT DE QUALITAT DEL VI BO/NO BO, ja que és una variable dicotòmica dependent.
+
+# 5. Resultats
+
+Al llarg del projecte s'han mostrat les gràfiques i els resultats obtinguts dels diversos tractaments de joc de dades.
+
+# 6. Conclusions
+
+En aquest treball es pretén respondre a les següents preguntes. Quines són les propietats fisicoquímiques que fan que un vi sigui bo? Les propietats que fan que un vi sigui bo són les mateixes per vins negres
+i blancs?
+
+Les propietats de fisicoquímiques que fan que un bo sigui bo o no, és a dir, que tingui una alta qualificació, són diferents el vi blanc i el vio negre. No obstant això, hi ha propietats comunes que són rellevants per ambdues tipologies de vins. Les propietats fisicoquímiques significatives són: l'alcohol, la volatilitat de l'àcid, el sulfur de diòxid lliure, el pH i els sulfats.
