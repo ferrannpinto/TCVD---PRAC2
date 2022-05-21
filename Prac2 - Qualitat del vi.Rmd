@@ -728,6 +728,90 @@ summary(reg5)
 
 S'observa que si sols es recullen les variables significatives que comparteixen els conjunts de vi blanc i vi negre s'obté un resultat pitjor que en el cas de fer l'anàlisi amb el conjunt unit en primera instància.
 
+Una altra metodologia per obtenir les variables més rellevants d'un conjunt és realitzar un arbre de decisions. A continuació s'explora aquesta altra metodologia. S
+
+```{r}
+# Separem el conjunt
+y <- wine$quality
+x <- wine
+x$quality <- NULL
+x$quality_d <- NULL
+
+# Arbre
+y = as.factor(y)
+arbre1 <- C50::C5.0(x, y,rules=FALSE )
+```
+
+S'observa que les variables més usades són *volatile.acidity*, *alcohol*, *fixed.acidity*, *free.sulfur.dioxide* i *residual.sugar*
+
+```{r}
+predicted_model <- predict(arbre1, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+S'observa una bona precisió en el del model pel conjunt d'entrenament. Ara es diferenciará els models pel tipus de vi.
+
+Es genera l'abre de decisició pel vi blanc
+
+```{r}
+# Separem el conjunt
+y <- viBlanc$quality
+x <- viBlanc
+x$quality <- NULL
+x$quality_d <- NULL
+x$type <- NULL
+
+# Arbre
+y = as.factor(y)
+arbreViBlanc <- C50::C5.0(x, y,rules=FALSE )
+```
+
+S'observa que les variables més usades són *alcohol*, *volatile.acidity*, *free.sulfur.dioxide* i *fixed.acidity*
+
+```{r}
+predicted_model <- predict(arbreViBlanc, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+Es realitza l'arbre de decisió pel vi negre.
+
+```{r}
+# Separem el conjunt
+y <- viNegre$quality
+x <- viNegre
+x$quality <- NULL
+x$quality_d <- NULL
+x$type <- NULL
+
+# Arbre
+y = as.factor(y)
+arbreViNegre <- C50::C5.0(x, y,rules=FALSE )
+```
+
+S'observa que les variables més usades són *alcohol*,*total.sulfur.dioxide*, *sulphates*, *pH* i *volatile.acidity*.
+
+```{r}
+predicted_model <- predict(arbreViNegre, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+Les variables rellevants pel vi blanc i el vi negre són significativament diferents. Per últim, es realitza un arbre de decisions amb les variables rellevants de vi blanc i vi negre.
+
+```{r}
+# Separem el conjunt
+y <- wine$quality
+x <- wine[,c('alcohol','volatile.acidity','sulphates','free.sulfur.dioxide','pH','fixed.acidity')]
+
+# Arbre
+y = as.factor(y)
+arbre2 <- C50::C5.0(x, y)
+```
+
+```{r}
+predicted_model <- predict(arbre2, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
 A continuació es realitza el model logìstic per predir si és bo o no bo un vi. 
 
 ```{r}
@@ -764,4 +848,4 @@ Al llarg del projecte s'han mostrat les gràfiques i els resultats obtinguts del
 En aquest treball es pretén respondre a les següents preguntes. Quines són les propietats fisicoquímiques que fan que un vi sigui bo? Les propietats que fan que un vi sigui bo són les mateixes per vins negres
 i blancs?
 
-Les propietats de fisicoquímiques que fan que un bo sigui bo o no, és a dir, que tingui una alta qualificació, són diferents el vi blanc i el vio negre. No obstant això, hi ha propietats comunes que són rellevants per ambdues tipologies de vins. Les propietats fisicoquímiques significatives són: l'alcohol, la volatilitat de l'àcid, el sulfur de diòxid lliure, el pH i els sulfats.
+Les propietats de fisicoquímiques que fan que un bo sigui bo o no, és a dir, que tingui una alta qualificació, són diferents el vi blanc i el vio negre. No obstant això, hi ha propietats comunes que són rellevants per ambdues tipologies de vins. Les propietats fisicoquímiques significatives són: l'alcohol, la volatilitat de l'àcid, el sulfur de diòxid lliure, el pH i els sulfats. Aquestes variables significatives s'han obtingut independentment per metodologies de regressions múltiples lineals i per metodologies d'arbres de decisions i ambdues han aportat les mateixes variables rellevants del conjunt.
