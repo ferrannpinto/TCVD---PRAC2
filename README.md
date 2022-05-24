@@ -11,7 +11,7 @@ Els datasets originals en format CSV han estat obtinguts de:
 https://archive.ics.uci.edu/ml/datasets/wine+quality
 
 ## Fitxers
-- **```Practica 1.pdf```**: document pdf que conté les respostes a les preguntes de la Pràctica.
+- **```Practica 2.pdf```**: document pdf que conté les respostes a les preguntes de la Pràctica.
 
 - **```codi/Prac2 - Qualitat del vi.Rmd```**: fitxer que conté el codi generat amb R per integrar, netejar i analitzar les dades.
 
