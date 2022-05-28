@@ -1,0 +1,882 @@
+---
+title: "Prac2 - Wine quality"
+author: "Ferran Pintó Haro i Arnau Santos Ribelles"
+date: "9/5/2022"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+# 0. Lectura del fitxer i preparació de les dades
+
+### Llegeix el fitxer CensusIncome_clean.csv i guarda les dades en un objecte amb identificador denominat cens. Verifica que les dades s'han carregat correctament.
+
+Carreguem els fitxers de dades i els guardem en dos objectes denominats *red_wine_df* i *white_wine_df*.
+
+```{r}
+red_wine_df <- read.csv('winequality-red.csv', sep= ",")
+white_wine_df <- read.csv('winequality-white.csv', sep= ";")
+```
+
+Examinem els valors resum de cada tipus de variable.
+
+```{r}
+summary(red_wine_df)
+str(red_wine_df)
+
+summary(white_wine_df)
+str(white_wine_df)
+```
+
+Veiem com tenim les mateixes variables en els dos datasets que sumen 12 variables. En el de vi negre tenim 1599 observacions i en el de vi blanc 4898, sent totes les variables numèriques i la de qualitat sent de tipus integer (sense decimals). Podem veure també els valors entre els que es troba cada variable.
+
+
+# 1. Descripció del dataset
+
+### Perquè és important i quina pregunta/problema pretén respondre?
+
+El dataset conté informació relacionada amb les variants negre i blanca de la varietat de vi portuguès “Vinho Verde”. Segons els autors del conjunt de dades, per motius de privacitat i logística només hi ha variables fisicoquímiques (entrades) i sensorials (sortida), i no hi ha, per exemple, dades sobre tipus de raïm, marca de vi, preu de venta, etc. 
+
+
+Comptem amb dos datasets (un per la variant blanca i un per la negre) que ajuntem posteriorment. Les 14 variables que conté el dataset final són:
+
+**“type”**: valor categòric corresponent al tipus de varietat (white / red).
+
+**“fixed acidity”**: valor numèric corresponent al la quantitat d’àcids implicats (que no s’evaporen fàcilment). 
+
+**“volatile acidity”**: valor numèric corresponent a la quantitat d’àcid acètic en el vi.
+
+**“citric acid”**: valor numèric corresponent a la quantitat d’àcid cítric. Entre 0 i 1.
+
+**“residual sugar”**: valor numèric corresponent a la quantitat (grams/litre) de sucre que queda després de la parada de la fermentació.
+
+**“chlorides”**: valor numèric corresponent a la quantitat de sal al vi.
+
+**“free sulfur dioxide”**: valor numèric corresponent a la quantitat de la forma lliure del SO2.
+
+**“total sulfur dioxide”**: valor numèric corresponent a la quantitat de formes lliures i lligades de SO2.
+
+**“density”**: valor numèric corresponent a la densitat del vi.
+
+**“pH”**: valor numèric corresponent al PH del vi. Escala de 0 (molt àcid) al 14 (molt bàsic).
+
+**“sulphates”**: valor numèric corresponent a la quantitat de sulfats.
+
+**“alcohol”**: valor numèric corresponent als graus d’alcohol que té el vi (percentatge d’alcohol). 
+
+**“quality”**: qualitat percebuda del vi. Valor numèric entre 0 i 10.
+
+**“quality_d”**: variable categòrica creada segons la qualitat del vi ("bo" si la qualitat és 7 o superior i "no bo" si és inferior a 7)
+
+
+És un dataset rellevant per poder fer tasques de classificació i regressió, al tenir diferents variables numèriques corresponents a les propietats del vi i una variable corresponent a la qualitat percebuda. Així podrem observar quines característiques del vi estan més relacionades amb la qualitat.
+
+És pretén respondre la pregunta següent:
+**Quines són les propietats fisicoquímiques que fan que un vi sigui bo?**
+
+Alhora que observar:
+**Les propietats que fan que un vi sigui bo són les mateixes per vins negres i blancs?**
+
+
+
+# 2. Integració i selecció de les dades d’interès a analitzar. 
+
+### Pot ser el resultat d’addicionar diferents datasets o una subselecció útil de les dades originals, en base a l’objectiu que es vulgui aconseguir.
+
+Integrarem els dos datasets per tenir un únic dataset corresponent a vins. Abans de fer-ho, com que ens interessarà saber la varietat de vi que correspon a cada registre, creem una columna anomenada "type" en els dos datasets que indiqui el tipus de vi que és: "White" si és vi blanc i "Red" si és negre.
+
+```{r}
+red_wine_df["type"] <- "Red"
+white_wine_df["type"] <- "White"
+```
+
+Ara integrem els dos datasets en un de sol, anomenat "wine". Ho fem mitjançant una fusió vertical, per incloure nous registres a un dataset. Per fer-ho és important que el format de les bases de dades a integrar sigui el mateix, com hem comprovat.
+
+```{r}
+wine <- rbind(red_wine_df,white_wine_df)
+```
+
+Comprovem que té el número de files i columnes que hauria de tenir i veiem els 3 primers i últims registres.
+
+```{r}
+dim(wine)
+head(wine,3)
+tail(wine,3)
+```
+
+Ara tenim en un dataset les 6497 files corresponents als vins blanc i negre, amb les mateixes 14 columnes. Com esperavem, les tres primeres files corresponen a registres de vi negre (Red) i les tres últimes a vi blanc (White). No eliminarem columnes ja que les farem servir totes per observar la seva relació amb la qualitat.
+
+# 3. Neteja de les dades. 
+
+## 3.1. Zeros o elements buits
+
+### Les dades contenen zeros o elements buits? Gestiona cadascun d’aquests casos.
+
+Comprovem si el dataset té valors absents (NA).
+
+```{r}
+colSums(is.na(wine))
+```
+
+Veiem com no tenim cap element buit en el dataset, cap valor nul en cap columna. 
+
+Observem ara els zeros.
+
+```{r}
+colSums(wine==0)
+```
+
+Veiem que la columna "citric.acid" té 151 zeros, però són vàlids ja que està al rang de valors possibles de la variable. Pot no haver-hi àcid cítric als vins. 
+
+## 3.2. Valors extrems.
+
+### Identifica i gestiona els valors extrems.
+
+Observem primer la distribució de la "fixed acidity".
+
+```{r}
+boxplot(wine$fixed.acidity, main="Distribució fixed acidity")
+```
+
+Malgrat hi ha molts valors atípics, no es consideren anòmals i per tant no els tractem. 
+
+Observem la distribució de la "volatile acidity".
+
+```{r}
+boxplot(wine$volatile.acidity, main="Distribució volatile acidity")
+```
+
+Malgrat hi ha molts valors atípics, no es consideren anòmals i per tant no els tractem. 
+
+
+Observem la distribució de l'àcid cítric.
+
+```{r}
+boxplot(wine$citric.acid, main="Distribució citric acid")
+```
+
+En una cerca, s'ha trobat que la quantitat legal màxima d'àcid cítric en el vi és de 1 gram per litre, per tant, considerem anòmals els valors atípics a partir d'aquest valor.
+
+Contem el número de files amb més d'1 gram d'àcid cítric per litre.
+
+```{r}
+nrow(wine[(wine$citric.acid > 1),])
+```
+
+Veiem que només tenim dues files i és un percentatge ínfim del total i decidim eliminar les files.
+
+```{r}
+wine <- wine[!(wine$citric.acid > 1),]
+```
+
+
+Observem ara la distribució del sucre residual.
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(wine$residual.sugar, main="Distribució residual sugar")
+hist(wine$residual.sugar, main="Histograma residual sugar", xlab="residual sugar")
+```
+
+Considerem anòmals els valors per sobre de 30.
+
+Contem el número de files amb valors per sobre dels 30 en sucre residual.
+
+```{r}
+nrow(wine[(wine$residual.sugar > 30),])
+```
+
+Veiem que només tenim tres files i és un percentatge ínfim del total i decidim eliminar les files.
+
+```{r}
+wine <- wine[!(wine$residual.sugar > 30),]
+```
+
+
+Observem ara la distribució de chlorides (quantitat de sal).
+
+```{r}
+boxplot(wine$chlorides, main="Distribució chlorides")
+```
+
+Malgrat hi ha molts valors atípics, no es consideren anòmals i per tant no els tractem. 
+
+
+Observem ara la distribució del diòxid de sofre lliure.
+
+```{r}
+boxplot(wine$free.sulfur.dioxide, main="Distribució free sulfur dioxide")
+```
+
+Observem, entre d'altres, un valor atípic molt llunyà a la resta, que considerem anòmal. Considerem anòmals els valors superiors a 150, deixant la resta igual.
+
+Veiem el número de files amb aquests valors.
+
+```{r}
+nrow(wine[(wine$free.sulfur.dioxide > 150),])
+```
+
+Veiem que només tenim una fila i decidim eliminar-la.
+
+```{r}
+wine <- wine[!(wine$free.sulfur.dioxide > 150),]
+```
+
+
+Observem ara la distribució del "total sulfur dioxide". 
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(wine$total.sulfur.dioxide, main="Distribució total sulfur dioxide")
+hist(wine$total.sulfur.dioxide, main="Histograma sulfur dioxide", xlab="total sulfur dioxide")
+boxplot.stats(wine$total.sulfur.dioxide)$out
+```
+
+Veiem com tenim varis valors extrems, però no els considerem anòmals.
+
+
+Observem ara la distribució de la densitat.
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(wine$density, main="Distribució density")
+hist(wine$density)
+boxplot.stats(wine$density)$out
+```
+
+No tenim cap outlier en la variable density.
+
+
+Observem ara la distribució del pH.
+
+```{r}
+boxplot(wine$pH, main="Distribució pH")
+```
+
+Observem valors atípics en la distribució del pH, però són valors lògics dins l'escala del pH, per tant els donem per vàlids.
+
+
+Mirem ara la distribució dels sulfats.
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(wine$sulphates, main="Distribució sulphates")
+hist(wine$sulphates)
+boxplot.stats(wine$sulphates)$out
+```
+
+Malgrat hi ha molts valors atípics, no es consideren anòmals i per tant no els tractem. Pel que s'ha vist cercant a Internet, és possible tenir fins a 2 grams per litre de sulfats.
+
+Observem ara la distribució del percentatge d'alcohol.
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(wine$alcohol, main="Distribució alcohol")
+hist(wine$alcohol, main="Histograma alcohol")
+
+boxplot.stats(wine$alcohol)$out
+```
+
+Malgrat hi ha valors atípics, no es consideren anòmals ja que pot haver-hi una graduació de 15% d'alcohol en un vi. Per tant no els tractem.
+
+```{r}
+boxplot(wine$quality, main="Distribució quality")
+```
+
+Apareixen com a valors extrems de la variable quality els valors 3, 8 i 9. Com que l'escala (el rang) de la variable va del 0 al 10, els donarem com a valors vàlids.
+
+
+
+Cal dir que a l'eliminar les files en haver-hi valors considerats extrems, pot ser que en alguna variable no hagin aparagut valors extrems o valors que haguessim considerat extrems perquè en eliminar files amb el criteri d'una altra variable, hagin estat eliminades files que tenien valors extrems en altres columnes.
+
+Tornem a observar la dimensió del dataset.
+
+```{r}
+dim(wine)
+```
+
+El dataset final de treball té 6491 files i 13 variables.
+
+
+# 4. Anàlisi de les dades.
+
+## 4.1. Selecció dels grups de dades
+
+### Selecció dels grups de dades que es volen analitzar/comparar (p. e., si es volen comparar grups de dades, quins són aquests grups i quins tipus d’anàlisi s’aplicaran?).
+
+Discretitzem la variable "quality", substituint els valors numèrics per etiquetes (bo/no bo). Per tant, es tracta de dicotomització. Amb aquesta variable nova podrem interpretar i comparar resultats. Classifiquem els 7 o superior com a "bo" i la resta com a "no bo".
+
+```{r}
+wine["quality_d"] <- cut(wine$quality, breaks = c(0,6.5,10), labels = c("no bo", "bo"))
+plot(wine$quality_d, main="Variable quality discretitzada")
+```
+
+Observem ara el percentatge de vins bons amb un pie chart.
+
+```{r}
+# Número de vins bons i la resta
+total_bo <- sum(wine$quality_d == "bo")
+total_nobo <- sum(wine$quality_d == "no bo")
+
+# Percentatges
+perc_bo <- (total_bo*100)/nrow(wine)
+perc_nobo <- (total_nobo*100)/nrow(wine)
+
+# Gràfic de la proporció de vins bons i no bons
+pie(c(perc_bo, perc_nobo), labels=paste0(c(round(perc_bo,1), round(perc_nobo,1)), "%"),
+main = "Percentatge de vins bons")
+legend("topleft", legend = c("Vins bons", "Vins no bons"), fill = c("white", "lightblue"))
+```
+
+
+
+Un cop integrades i netejades les dades, és el moment de l'anàlisi de les dades. Preparem els grups de dades que volem analitzar o comparar. En aquest cas només tenim dues variables categòriques: quality_d, que indica si el vi és bo o no, i "type" que indica si el vi es negre o blanc.
+
+Compararem si la qualitat del vi blanc i del vi negre són percebudes diferents, i farem alguns anàlisis diferenciats segons el tipus de vi. D'altra banda, utilitzarem els vins "bons" i els que no, per veure les diferències en les característiques.
+
+
+Voldrem comparar les variables més explicatives de la qualitat del vi segons el vi blanc i vi negre, per tant els grups seran vi blanc i vi negre, que separem a continuació.
+
+```{r}
+viBlanc <- wine[wine['type'] == 'White',]
+viNegre <- wine[wine['type'] == 'Red',]
+```
+
+Es farà la matriu de correlació per cada tipus de vi i es buscarà el millor model de regressió lineal per explicar la qualitat amb les característiques del vi.
+
+
+## 4.2. Comprovació de la normalitat i homogeneïtat de la variància.
+
+Per comprovar la normalitat de cada variable farem servir el test de Kolmogorov-Smirnov, ja que la prova de Shapiro-Wilk accepta fins a 5000 registres i en tenim més.
+
+```{r}
+ks.test(wine$fixed.acidity, pnorm, mean(wine$fixed.acidity), sd(wine$fixed.acidity))
+ks.test(wine$volatile.acidity, pnorm, mean(wine$volatile.acidity), sd(wine$volatile.acidity))
+ks.test(wine$citric.acid, pnorm, mean(wine$citric.acid), sd(wine$citric.acid))
+ks.test(wine$residual.sugar, pnorm, mean(wine$residual.sugar), sd(wine$residual.sugar))
+ks.test(wine$chlorides, pnorm, mean(wine$chlorides), sd(wine$chlorides))
+ks.test(wine$free.sulfur.dioxide, pnorm, mean(wine$free.sulfur.dioxide), sd(wine$free.sulfur.dioxide))
+ks.test(wine$total.sulfur.dioxide, pnorm, mean(wine$total.sulfur.dioxide), sd(wine$total.sulfur.dioxide))
+ks.test(wine$density, pnorm, mean(wine$density), sd(wine$density))
+ks.test(wine$pH, pnorm, mean(wine$pH), sd(wine$pH))
+ks.test(wine$sulphates, pnorm, mean(wine$sulphates), sd(wine$sulphates))
+ks.test(wine$alcohol, pnorm, mean(wine$alcohol), sd(wine$alcohol))
+ks.test(wine$quality, pnorm, mean(wine$quality), sd(wine$quality))
+```
+
+Veiem com la normalitat de totes les variables (fixed.acidity, volatile.acidity, citric.acid, residual.sugar, chlorides, free.sulfur.dioxide, total.sulfur.dioxide, density, pH, sulphates, alcohol i quality), tenen un valor p inferior a 0.05, i acceptem que les dades no provenen d'una distribució normal ja que rebutgem la hipòtesi nul·la, en totes les variables.
+
+
+Pel que fa a la homoscedasticitat, contrastem amb la prova de Levene la igualtat de variàncies entre grups que necessitarem saber posteriorment.
+
+```{r}
+library(car) # Llibreria pel test de homoscedasticitat (levene)
+
+# Comprovant la homoscedasticitat entre tipus de vi en la variable qualitat.
+leveneTest(quality ~ type, data = wine)
+```
+
+Observem que les variancies entre el vi blanc i negre són iguals pel que fa a la qualitat ja que el p-valor superior a 0.05 ens porta a acceptar la hipòtesis nul·la d'igualtat de variancies per als diferents tipus de vi.
+
+
+Estudiem la igualtat de variàncies entre els vins bons i els no bons pel que fa a l'alcohol.
+
+```{r}
+vibo <- wine[wine$quality_d == "bo",]
+vinobo <- wine[wine$quality_d == "no bo",]
+
+var.test(vibo$alcohol, vinobo$alcohol)
+```
+
+El resultat del test és un valor p<0.05. Rebutgem la hipòtesi nul·la d’igualtat de variàncies: assumim que les variàncies són diferents amb un nivell de confiança del 95%. 
+
+Estudiem també la igualtat de variàncies entre els vins bons i els no bons pel que fa a la resta de variables.
+
+```{r}
+var.test(vibo$chlorides, vinobo$chlorides)
+var.test(vibo$volatile.acidity, vinobo$volatile.acidity)
+var.test(vibo$fixed.acidity, vinobo$fixed.acidity)
+var.test(vibo$citric.acid, vinobo$citric.acid)
+var.test(vibo$residual.sugar, vinobo$residual.sugar)
+var.test(vibo$free.sulfur.dioxide, vinobo$free.sulfur.dioxide)
+var.test(vibo$total.sulfur.dioxide, vinobo$total.sulfur.dioxide)
+var.test(vibo$density, vinobo$density)
+var.test(vibo$pH, vinobo$pH)
+var.test(vibo$sulphates, vinobo$sulphates)
+```
+
+Observem que tots els testos tenen un p-valor inferior a 0.05, que ens porta a rebutjar l'hipòtesi nul·la d'igualtat de variàncies; excepte en la variable pH, que si que presenta variàncies iguals en els grups de vins bons i no bons. Així doncs, hi ha desigualtat de variàncies entre els vins bons i els no bons pel que fa a totes les variables menys el pH.
+
+
+
+## 4.3. Aplicació de proves estadístiques per comparar els grups de dades. 
+
+### En funció de les dades i de l’objectiu de l’estudi, aplicar proves de contrast d’hipòtesis, correlacions, regressions, etc. Aplicar almenys tres mètodes d’anàlisi diferents.
+
+CORRELACIONS
+
+Fem una matriu de correlació entre les variables corresponents a les característiques i la variable quality. Com que a l'apartat anterior s'ha vist que les dades (cap variable) no segueix una distribució normal, la correlació serà fet amb Spearman, una alternativa no paramètrica que mesura el grau de dependència entre dues variables i no comporta cap suposició sobre la distribució de les dades.
+
+```{r}
+library(corrplot)
+library(dplyr)
+
+corrplot(corr = cor(x = select(wine, fixed.acidity, volatile.acidity, citric.acid, residual.sugar, chlorides, free.sulfur.dioxide, total.sulfur.dioxide, 
+                               density, pH, sulphates, alcohol, quality), method = "spearman"), 
+         method = "number", type = "lower", cl.cex = 0.5, number.cex = 0.6, 
+         tl.col = "black", tl.srt = 45, tl.cex = 0.6)
+```
+
+Atenent als coeficients de correlació *(method = "spearman")*, observem que les relacions més destacables respecte quality es donen amb alcohol (0.45) i density (-0.32). També veiem una relació negativa moderada entre chlorides i la qualitat (-0.30). La resta són relacions dèbils/baixes. Les dues correlacions anomenades són correlacions moderades: la primera implica que a mesura que en certa mesura, a mesura que augmenta l'alcohol, augmenta la qualitat percebuda del vi; i la segona implica que a mesura que augmenta la densitat, disminueix la qualitat. A mesura que augmenten els chlorides, disminueix en certa manera la qualitat.
+
+Cal destacar també la relació entre les dues variables següents: la densitat (density) i l'alcohol (alcohol), amb un coeficient de -0.70. Aquesta forta correlació negativa ens fa pensar que degut a la química, la quantitat d'alcohol redueix la densitat, i d'aquí que la quantitat d'alcohol serà la millor opció com a predictor de la qualitat del vi.
+
+El SO2 lliure i el SO2 total estan altament correlacionats entre si, com podiem esperar.
+
+
+Podem fer la matriu de correlacions pels vins blancs i pels vins negres, per observar si aquestes correlacions es veuen accentuades en algun dels dos tipus de vins.
+
+```{r}
+# Matriu de correlacions pel vi blanc (filtrar en "viBlanc")
+corrplot(corr = cor(x = select(viBlanc, fixed.acidity, volatile.acidity, citric.acid, residual.sugar, chlorides, free.sulfur.dioxide, total.sulfur.dioxide, 
+                               density, pH, sulphates, alcohol, quality), method = "spearman"),
+         method = "number", type = "lower", cl.cex = 0.5, number.cex = 0.6, 
+         tl.col = "black", tl.srt = 45, tl.cex = 0.6, main = "Matriu correlacions vi blanc")
+
+# Matriu de correlacions pel vi blanc (filtrar en "viNegre")
+corrplot(corr = cor(x = select(viNegre, fixed.acidity, volatile.acidity, citric.acid, residual.sugar, chlorides, free.sulfur.dioxide, total.sulfur.dioxide, 
+                               density, pH, sulphates, alcohol, quality), method = "spearman"),
+         method = "number", type = "lower", cl.cex = 0.5, number.cex = 0.6, 
+         tl.col = "black", tl.srt = 45, tl.cex = 0.6, main = "Matriu correlacions vi negre")
+```
+
+Veiem com en el cas dels vins blancs les correlacions relacionades amb la qualitat són molt similars.
+
+En el cas dels vins negres, la relació de densitat amb la qualitat ara és de -0.18 (molt dèbil), la relació de l'alcohol amb la qualitat augmenta una mica respecte el total (0.48) i apareix una altra correlació mitjana, entre la volatilitat de l'acidesa (volatile acidity) i la qualitat (-0.38), en el sentit que a més acidesa volàtil, menys qualitat. Tampoc té gaire rellevància la correlació entre els chlorides i la qualitat (coeficient de -0.19) 
+
+
+Observem les relacions entre les variables amb més correlació amb la qualitat i la qualitat.
+
+```{r}
+boxplot(wine$volatile.acidity ~ wine$quality, xlab="Qualitat", ylab="Volatile acidity", main="Volatile Acidity i qualitat")
+boxplot(wine$chlorides ~ wine$quality, xlab="Qualitat", ylab="Chlorides", main="Chlorides i qualitat")
+boxplot(wine$density ~ wine$quality, xlab="Qualitat", ylab="Density", main="Density i qualitat")
+boxplot(wine$alcohol ~ wine$quality, xlab="Qualitat", ylab="Alcohol", main="Alcohol i qualitat")
+```
+
+Veiem gràficament les relacions. Es veu clarament la relació entre alcohol i qualita: quan augmenta la qualitat percebuda augmenta l'alcohol; i també es veu força clara la relació amb la densitat (a mesura que augmenta la densitat disminueix la qualitat). Les relacions de la qualitat amb els chlorides i l'acidesa volàtil també es poden veure gràficament.
+
+.....
+
+
+TEST D'HIPÒTESIS
+
+Com que hem vist que l'alcohol està correlacionat amb la qualitat del vi, observem la distribució de la variable alcohol segons si el vi és bo o no:
+
+```{r}
+boxplot(wine$alcohol ~ wine$quality_d, xlab="Qualitat", ylab="Alcohol", main="Distribució alcohol segons bo/no bo")
+```
+
+Ara cal analitzar estadísticament si la mitjana d'alcohol és diferent pels vins bons i els vins no bons. Per fer-ho, farem un contrast d'hipòtesi per la diferència de mitjanes de alcohol.
+
+La pregunta de recerca és:
+
+**"La quantitat d'alcohol és diferent en els vins bons i els vins no bons?"**
+
+La *hipòtesi nul·la (H0)* és que la mitjana d'alcohol és iguals entre vins bons i dolents.
+
+La *hipòtesi alternativa (H1)* és que la mitjana d'alcohol és diferents entre vins bons i dolents.
+
+Apliquem un test de dues mostres sobre la mitjana amb variàncies desconegudes. Pel teorema del límit central podem assumir normalitat.
+
+Per utilitzar l'estadístic adequat cal comprovar la igualtat de variàncies de les dues poblacions. S'ha fet a l'apartat 4.2 i hem observat que les variàncies són diferents amb un nivell de confiança del 95%. En conseqüència, el test correspondrà a un test de dues mostres independents sobre la mitjana amb variàncies desconegudes diferents.
+
+```{r}
+t.test(vibo$alcohol, vinobo$alcohol, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+```
+
+El valor p del test és inferior a 0.05, per tant amb un nivell de confiança del 95% podem rebutjar la hipòtesi nul·la d'igualtat de mitjanes, i podem afirmar que la mitjana de alcohol és estadísticament diferent entre els vins bons i els no bons. Si veiem les mitjanes, veiem que la mitjana d'alcohol és més alta en els vins bons (11.43 graus) que en els vins no bons (10.26 graus).  
+
+
+Ens interessa saber si la segona variable més correlacionada a nivell general amb la qualitat (els "chlorides") té un valor diferent entre els vins bons i els vins no bons. La lògica ens porta a pensar que com la qualitat i els chlorides tenen una correlació negativa, els vins bons tindran menys chlorides. Ho observem amb un boxplot i posteriorment observem si és significatiu.
+
+```{r}
+boxplot(wine$chlorides ~ wine$quality_d, xlab="Qualitat", ylab="Chlorides", main="Distribució chlorides segons bo/no bo")
+t.test(vibo$chlorides, vinobo$chlorides, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+```
+
+Veiem que el p-value del test és inferior a 0.05, portant-nos a rebutjar la hipòtesi nul·la d'igualtat de mitjanes amb un nivell de confiança del 95%. Podem afirmar que la mitjana de chlorides és diferent entre els vins bons i els no bons. Observant les mitjanes, veiem que la quantitat mitjana de sal al vi és inferior en els vins bons (0.045) respecte els vins no bons (0.059).
+
+Estudiem si hi ha diferencies en les mitjanes de la resta de variables entre els vins bons i els no bons.
+
+```{r}
+t.test(vibo$fixed.acidity, vinobo$fixed.acidity, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$volatile.acidity, vinobo$volatile.acidity, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$citric.acid, vinobo$citric.acid, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$residual.sugar, vinobo$residual.sugar, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$free.sulfur.dioxide, vinobo$free.sulfur.dioxide, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$total.sulfur.dioxide, vinobo$total.sulfur.dioxide, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$density, vinobo$density, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$pH, vinobo$pH, alternative = "two.sided", var.equal=TRUE, conf.level=0.95) # Igualtat de variàncies
+t.test(vibo$sulphates, vinobo$sulphates, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+t.test(vibo$alcohol, vinobo$alcohol, alternative = "two.sided", var.equal=FALSE, conf.level=0.95)
+```
+
+Veiem com totes les variables excepte el "free.sulfur.dioxide" són diferents, en mitjana, entre els vins bons i els no bons.
+
+L'acidesa fixe és, en mitjana, més baixa en els vins bons (7.09) que en els no bons (7.25). L'acidesa volàtil és més baixa en els vins bons (0.29) que en els no bons (0.35). L'àcid cítric és significativament més alt en els vins bons (0.33) que en els no bons (0.31). El sucre residual és més baix en els vins bons (4.83) que en els no bons (5.57). El "free sulfur dioxide" és més alt en els vins bons (31.06) que en els no bons (30.34). El "total sulfur dioxide" és més baix en els vins bons (109.89) respecte els no bons (117.05). La densitat és més baixa en els vins bons (0.993) que en els no bons (0.995). El pH és més alt en els vins bons (3.227) que en els no bons (3.216). Els sulfats són més alts en els vins bons (0.541) que en els no bons (0.529). 
+
+
+
+Volem observar ara si les mitjanes de qualitat entre vins blancs i negres són les mateixes.
+
+Malgrat no es compleix la normalitat, apliquem el teorema central del límit (que s'aplica a la mitjana de la mostra d'un conjunt de dades), i considerem que les dades segueixen una distribució normal, al tenir mides de les mostres grans. Pel que fa a la homoscedasticitat, en l'apartat 4.2 hem vist que les variàncies entre grups (tipus de vi) són iguals pel que fa a la variable qualitat.
+
+Per tant, com que es compleixen els supòsits, podem aplicar la prova t de Student pel contrast d'hipòtesis. 
+
+```{r}
+# Comparem mitjanes de la qualitat entre el tipus de vi
+t.test(quality ~ type, data = wine)
+```
+
+Veiem com el p-valor de la prova és menor al nivell de significació (0.05), i rebutgem la hipòtesi nula; concloent que existeixen diferències estadísticament significatives entre el vi blanc i el negre en la qualitat percebuda. El vi blanc és percep amb una millor qualitat.
+
+.....
+
+REGRESSIÓ
+
+Utilitzem la funció lm per ajustar un model de **regressió simple** entre l'alcohol (variable explicativa) i la qualitat (variable resposta). Mostrem el gràfic amb la recta de regressió entre quality i alcohol.
+
+```{r}
+regr1 <- lm(quality ~ alcohol, data = wine)
+summary(regr1)
+
+plot(wine$alcohol, wine$quality, main = "Recta de regressió amb núvol de punts", xlab="Qualitat", ylab="Alcohol")
+abline(regr1, col="red")
+```
+
+Pel que fa a aquest model, és significatiu (p-valor menor que 0.05). Pel que fa a la bondat de l'ajust, el coeficient de determinació R2 és capaç d'explicar el 19.81%  de la variabilitat present en la variable de resposta (quality) mitjançant la variable independent (alcohol).
+
+
+
+Generem ara un model de **regressió lineal múltiple**, intentant arribar al model final més adequat. Ho farem introduint en el model totes les variables numèriques com a predictores, i realitzant la selecció dels millors predictors amb la mediació Akaike (AIC).
+
+```{r}
+# Regressió lineal múltiple on la variable "target" serà la qualitat
+reg2 <- lm(quality ~ alcohol + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + 
+             chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates, data = wine)
+summary(reg2)
+```
+
+El model amb totes les variables introduïdes com a predictors té una R2 baixa (0.29), és capaç d’explicar el 29.43% de la variabilitat observada en la qualitat. El *p-valor* del model és significatiu (<0.05), pel que es pot acceptar que el model no és a l’atzar, al menys un dels coeficients de regressió es diferent a 0. Tots són significatius.
+
+Observem el VIF per mirar si existeix colinealitat entre variables.
+
+```{r}
+vif(reg2)
+```
+
+Observant el VIF, veiem que per la variable predictora density és molt alt (VIF = 17.3). Aquest factor d’inflació de la variància indica que existeix colinealitat entre aquesta variable i alguna/es altres. Eliminem doncs, la variable densitat del model ja que exhibeix multicolinealitat.
+
+Tornem a fer el model sense aquesta variable i el visualitzem.
+
+```{r}
+# Regressió lineal múltiple on la variable "target" serà la qualitat
+reg2 <- lm(quality ~ alcohol + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + 
+             chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates, data = wine)
+summary(reg2)
+```
+
+Per seleccionar els millors predictors, fem servir la tècnica de “stepwise mixte” i el *Akaike (AIC)* amb la funció step() per determinar la qualitat del model:
+
+```{r}
+step(reg2, direction="both", trace=1)
+```
+
+Les variables *"citric.acid"* i *"fixed.acidity"* han estat excloses del procés de selecció, les mateixes que no eren significatives al model.
+
+Així doncs, el millor model resultant del procés ha estat:
+
+```{r}
+reg2 <- lm(quality ~ alcohol + volatile.acidity + residual.sugar + chlorides +
+           free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates, data = wine)
+summary(reg2)
+```
+
+Veiem que hem reduït les variables i la variabilitat explicada (R2) gairebé no s’ha modificat (29.17), el que significa que les variables excloses no ajudaven en gran mesura a explicar la variabilitat de la variable qualitat.
+
+Cada una de les pendents del model de regressió lineal múltiple es defineix com a continuació: si la resta de variables es mantenen constants, per cada unitat que augmenta el predictor, la variable qualitat (Y) varia en mitjana tantes unitats com indica la pendent. En aquest cas, per exemple, cada unitat que augmenta el predictor alcohol, la qualitat augmenta en mitjana 0.33 unitats.
+
+```{r}
+vif(reg2)
+```
+
+Veiem com ara no tenim cap valor del VIF molt elevat.
+
+```{r}
+plot(reg2, which=c(2,1))
+```
+
+El gràfic de residus enfront els valors ajustats no mostra falta de homoscedasticitat, ja que els residus estan prou centrats entorn el valor 0. Els residus mostren la mateixa variança pels diferents nivells: hi ha una correcta distribució de l'error en el model. 
+
+D'altra banda, en el gràfic qqplot per comprovar la normalitat, els residus segueixen la línia en el centre, però els a les cues tendeixen a allunyar-se. Les desviacions es concentren a les cues però la resta de dades s'ajusta bona manera a la distribució normal.
+
+
+```{r message= FALSE, warning=FALSE, include=FALSE}
+if(!require("MASS")) install.packages("MASS"); library("MASS")
+```
+
+
+El model obtingut després del procés de selecció ens ha indicat que el millor model conté totes les variables explicatives excepte *"citric.acid"*, *"fixed.acidity"* i *"density"*. Si reduissim més el nombre de variables perdriem capacitat de predicció en model. Les millors variables per predir la qualitat del vi són:
+
++ alcohol 
++ volatile.acidity 
++ residual.sugar 
++ chlorides 
++ free.sulfur.dioxide 
++ total.sulfur.dioxide 
++ pH
++ sulphates
+
+
+
+REGRESSIÓ per vi blanc i vi negre 
+
+Després d'haver obtingut les variables del millor model de regressió del total de vins es vol observar si aquestes variables es mantenen en el cas d'analitzar el vi negre i el vi blanc per separat.
+
+S'analitzen les variables que fan el millor model lineal múltiple per predir la qualitat del vi blanc.
+
+```{r}
+# Recordem que tenim el vi blanc filtrat a "viBlanc"
+empty.model <- lm(quality ~ 1, data=viBlanc)
+horizonte <- formula(quality ~ alcohol + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + 
+                       chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates)
+
+modelViBlanc <- stepAIC(empty.model, trace=FALSE, direction="both", scope=horizonte)
+modelViBlanc$anova
+```
+
+
+Ara analitzem les variables que fan el millor model lineal múltiple per predir la qualitat del vi negre.
+
+```{r}
+empty.model <- lm(quality ~ 1, data=viNegre)
+horizonte <- formula(quality ~ alcohol + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + 
+                       chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates)
+
+modelViNegre <- stepAIC(empty.model, trace=FALSE, direction="both", scope=horizonte)
+modelViNegre$anova
+```
+
+S'observa que les variables principals del vi blanc són:
+
++ alcohol
++ volatile.acidity
++ residual.sugar
++ free.sulfur.dioxide
++ density
++ pH
++ sulphates
++ fixed.acidity 
+
+S'observa que les variables principals del vi negre són:
+
++ alcohol
++ volatile.acidity
++ free.sulfur.dioxide 
++ pH
++ sulphates
++ total.sulfur.dioxide
++ chlorides
+
+S'observen que les variables *residual.sugar*, *density* i *fixed.acidity* són predictores unicament pel vi blanc. Tanmateix, les variables *total.sulfur.dioxide* i *chlorides* ho són únicament pel vi negre. 
+
+
+Es generen els millors models de regressió lineal múltiple pel vi blanc i pel vi negre un cop eliminades les variables que menys contribuien al model.
+
+```{r}
+lmViBlanc <- lm(quality ~ alcohol + volatile.acidity + residual.sugar + free.sulfur.dioxide + 
+    density + pH + sulphates + fixed.acidity, data = viBlanc)
+summary(lmViBlanc)
+```
+
+```{r}
+lmViNegre <- lm(quality ~ alcohol + volatile.acidity + sulphates + total.sulfur.dioxide + 
+    chlorides + pH + free.sulfur.dioxide, data = viNegre)
+summary(lmViNegre)
+```
+
+S'observa que l'ajust del vi blanc és de 0.289 i l'ajust del vi negre és de 0.3595. És a dir, en el conjunt del vi negre les variables explicatives expliquen un percentatge més elevat de la variabilitat de la qualitat del vi. 
+
+.....
+
+ARBRE DE DECISIONS.
+
+Una altra metodologia per obtenir les variables més rellevants d'un conjunt és realitzar un arbre de decisions. A continuació s'explora aquesta altra metodologia.
+
+```{r}
+library(caret)
+
+# Separem el conjunt
+y <- wine$quality_d
+x <- wine
+x$quality <- NULL
+x$quality_d <- NULL
+x$type <- NULL
+
+# Arbre
+y = as.factor(y)
+arbre1 <- C50::C5.0(x, y,rules=FALSE )
+
+varImp(arbre1)
+```
+
+S'observa que les variables més usades són *alcohol*, *volatile.acidity*, i *residual.sugar*
+
+```{r}
+predicted_model <- predict(arbre1, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+S'observa una bona precisió en el del model pel conjunt d'entrenament (89.49%). Ara es diferenciarà els models pel tipus de vi.
+
+Es genera l'abre de decisició pel vi blanc
+
+```{r}
+# Separem el conjunt
+y <- viBlanc$quality_d
+x <- viBlanc
+x$quality <- NULL
+x$quality_d <- NULL
+x$type <- NULL
+
+# Arbre
+y = as.factor(y)
+arbreViBlanc <- C50::C5.0(x, y,rules=FALSE )
+varImp(arbreViBlanc)
+```
+
+S'observa que les variables més usades són *alcohol*, *pH* i  *volatile.acidity*.
+
+```{r}
+predicted_model <- predict(arbreViBlanc, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+Es realitza l'arbre de decisió pel vi negre.
+
+```{r}
+# Separem el conjunt
+y <- viNegre$quality_d
+x <- viNegre
+x$quality <- NULL
+x$quality_d <- NULL
+x$type <- NULL
+
+# Arbre
+y = as.factor(y)
+arbreViNegre <- C50::C5.0(x, y,rules=FALSE )
+varImp(arbreViNegre)
+```
+
+S'observa que les variables més usades són *alcohol*,  i *fixed.acidity*.
+
+```{r}
+predicted_model <- predict(arbreViNegre, x, type="class" )
+print(sprintf("La precisió de l'arbre en el conjunt d'entrenament és: %.4f %%",100*sum(predicted_model == y) / length(predicted_model)))
+```
+
+.....
+
+REGRESSIÓ LOGÍSTICA 
+
+A continuació es realitza el model logístic amb les variables numèriques per predir la probabilitat que un vi sigui bo o no, ja que és una variable dicotòmica dependent. 
+
+```{r}
+wine$quality_d <- as.factor(wine$quality_d)
+m1 <- glm(quality_d ~ alcohol + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + 
+             chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates, family = binomial, data= wine)
+summary(m1)
+```
+
+Ara generem el model sense la variable *citric.acid* perquè no és significativa.
+
+```{r}
+
+m2 <- glm(quality_d ~ alcohol + volatile.acidity + sulphates + residual.sugar + 
+    free.sulfur.dioxide + density + total.sulfur.dioxide + 
+    chlorides + pH + fixed.acidity, family = binomial, data= wine)
+summary(m2)
+
+# Importancia de les variables
+varImp(m2)
+```
+
+El model logístic creat per predir la probabilitat de que un vi sigui bo o no a partir de les seves característiques és significatiu, amb tots els predictors significatius excepte l'àcid citric. 
+
+.....
+
+
+CORVES ROC REGRESSIÓ LOGÍSTICA I RANDOM FOREST
+
+Ara observarem les corves ROC del model de regressió logística i del model de random forest. Això ens permetrà observar la sensibilitat enfront la especificitat. Les dades són partides en conjunts d'entrenament (train, 80%) i prova (test, 20%) i es construeixen els dos models que usaran el conjunt d'entrenament per aprendre i llavors fer prediccions al conjunt de test. Posteriorment observarem la corva ROC dels dos models. 
+
+
+```{r}
+library(pROC)
+library(randomForest)
+
+#Dividim les dades entre entrenament i test
+index <- sample(1:nrow(wine),size = 0.8*nrow(wine))
+train <- wine[index,]
+test <- wine[-index,]
+
+# Construim un random forest i el testegem
+rf_model <- randomForest(quality_d ~ alcohol + volatile.acidity + sulphates + residual.sugar + free.sulfur.dioxide +
+                  density + total.sulfur.dioxide + chlorides + pH + fixed.acidity + citric.acid, data = train)
+rf_prediction <- predict(rf_model, test, type = "prob")
+
+# Construm un model de regressió logística
+lr_model <- glm(quality_d ~ alcohol + volatile.acidity + sulphates + residual.sugar + free.sulfur.dioxide +
+                  density + total.sulfur.dioxide + chlorides + pH + fixed.acidity, family = binomial, data= train)
+lr_prediction <- predict(lr_model, test, type="response")
+
+# Curves ROC
+ROC_lr <- roc(test$quality_d, lr_prediction) # Corva Roc regressió logística
+ROC_lr_auc <- auc(ROC_lr) # Valor de àrea sota la curva de la regressió logística
+
+ROC_rf <- roc(test$quality_d, rf_prediction[,2]) # Corva Roc arbre
+ROC_rf_auc <- auc(ROC_rf) # Valor de àrea sota la curva de l'arbre
+
+
+# Grafiquem la corva ROC
+plot(ROC_lr, col = "green", main = "ROC per Random Forest (VERMELL) vs Regressió logística (VERD)")
+lines(ROC_rf, col = "red")
+
+paste("Area under curve of random forest: ", ROC_rf_auc)
+paste("Area under curve of logistic regression: ", ROC_lr_auc)
+
+varImp(lr_model)
+varImp(rf_model)
+```
+
+
+El valor de l'àrea sota la corva obtingut indica que el model és força bo per discriminar les dades. Si el valor fos 1, indicaria que el model discrimina molt bé al predir si el vi és bo o no, amb les característiques del vi. Tot i no ser 1, discrimina bé les dades. El model prediu bastant bé, mitjançant les característiques del vi, si aquest serà bo o no. 
+
+El model de "Random Forest" discrimina millor les dades, al ser la seva àrea sota la curva de 0.92 i la de la regressió logística 0.82.
+
+
+# 5. Resultats
+
+Al llarg del projecte s'han mostrat les gràfiques i els resultats obtinguts dels diversos tractaments de joc de dades.
+
+# 6. Conclusions
+
+Les conclusions són detallades al document PDF amb les respostes a les preguntes.
+
